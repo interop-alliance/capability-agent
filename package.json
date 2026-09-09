@@ -1,7 +1,7 @@
 {
-  "name": "@interop/isomorphic-lib-template",
-  "description": "A Typescript/Javascript isomorphic library template, for use in the browser, Node.js, and React Native.",
-  "version": "0.0.1",
+  "name": "@interop/capability-agent",
+  "description": "Deterministic did:key Ed25519 invocation signer (CapabilityAgent) derived from a seed or a salted secret, for the browser, Node.js, and React Native.",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "build": "pnpm run clear && tsc",
@@ -21,7 +21,7 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE.md"
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -36,6 +36,8 @@
   "types": "dist/index.d.ts",
   "sideEffects": false,
   "dependencies": {
+    "@interop/data-integrity-core": "^8.7.1",
+    "@interop/ed25519-verification-key": "^8.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -57,7 +59,11 @@
     "provenance": true
   },
   "keywords": [
-    "isomorphic"
+    "isomorphic",
+    "did:key",
+    "ed25519",
+    "zcap",
+    "capability agent"
   ],
   "packageManager": "pnpm@11.5.0",
   "engines": {
@@ -67,11 +73,11 @@
     "name": "Interop Alliance",
     "url": "https://github.com/interop-alliance/"
   },
-  "license": "MIT",
+  "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/interop-alliance/isomorphic-lib-template.git"
+    "url": "git+https://github.com/interop-alliance/capability-agent.git"
   },
-  "homepage": "https://github.com/interop-alliance/isomorphic-lib-template",
-  "bugs": "https://github.com/interop-alliance/isomorphic-lib-template/issues"
+  "homepage": "https://github.com/interop-alliance/capability-agent",
+  "bugs": "https://github.com/interop-alliance/capability-agent/issues"
 }
