@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Interop Alliance. All rights reserved.
  */
 import { describe, it, expect } from 'vitest'
+import { Ed25519VerificationKey } from '@interop/ed25519-verification-key'
 import { CapabilityAgent } from '../../src/index.js'
 
 describe('CapabilityAgent.fromSecret', () => {
@@ -208,6 +209,25 @@ describe('CapabilityAgent.getVerificationKeyPair', () => {
       publicKeyMultibase: expect.stringMatching(/^z6Mk/),
       privateKeyMultibase: expect.stringMatching(/^z/)
     })
+  })
+
+  it('throws when the key pair has no private key', async () => {
+    const source = await CapabilityAgent.fromSecret({
+      secret: 'correct horse battery staple',
+      handle: 'urn:example:alice'
+    })
+    const publicOnly = await Ed25519VerificationKey.from(
+      source.getVerificationKeyPair()
+    )
+    publicOnly.privateKeyMultibase = undefined
+    const agent = new CapabilityAgent({
+      handle: 'urn:example:alice',
+      signer: source.getSigner(),
+      keyPair: publicOnly
+    })
+    expect(() => agent.getVerificationKeyPair()).toThrow(
+      'CapabilityAgent is missing Ed25519 key material'
+    )
   })
 
   it('throws when key material is absent', () => {

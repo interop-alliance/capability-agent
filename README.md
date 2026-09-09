@@ -24,8 +24,9 @@ is what lets a wallet rebuild its identity from a stored seed.
 
 The class was extracted from
 [`@interop/webkms-client`](https://github.com/interop-alliance/webkms-client),
-which re-exports it. It has no dependency on a KMS: libraries that only need a
-seed-to-did:key signer depend on this package directly.
+which now depends on this package instead of shipping the class. It has no
+dependency on a KMS: a library that only needs a seed-to-did:key signer depends
+on this package alone.
 
 The derivation:
 

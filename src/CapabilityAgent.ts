@@ -5,14 +5,15 @@
 
 /**
  * A deterministic did:key Ed25519 invocation signer derived from a seed, or
- * from a secret salted with a handle. The derivation is a permanent wire
+ * from a secret mixed with a handle. The derivation is a permanent wire
  * convention: the same inputs must reconstitute the same did:key forever, so
  * consumers pin its output in fixtures. Do not change the hashing, the HMAC
  * step, or the id shape.
  */
-import type {
-  ISigner,
-  IVerificationKeyPair2020
+import {
+  type ISigner,
+  type IVerificationKeyPair2020,
+  SHA256HMACKey
 } from '@interop/data-integrity-core'
 import { Ed25519VerificationKey } from '@interop/ed25519-verification-key'
 
@@ -25,7 +26,10 @@ const { subtle } = globalThis.crypto
  */
 export type VerificationKeyDescriptor = IVerificationKeyPair2020 &
   Required<
-    Pick<IVerificationKeyPair2020, 'type' | 'controller' | 'publicKeyMultibase'>
+    Pick<
+      IVerificationKeyPair2020,
+      'type' | 'controller' | 'publicKeyMultibase' | 'privateKeyMultibase'
+    >
   >
 
 export class CapabilityAgent {
@@ -59,7 +63,7 @@ export class CapabilityAgent {
   }) {
     this.handle = handle
     // signer is a did:key
-    this.id = signer.id.split('#')[0] ?? signer.id
+    this.id = signer.id.replace(/#.*$/, '')
     this.signer = signer
     // reference to core key pair used for invocation signing
     this._keyPair = keyPair
@@ -86,24 +90,20 @@ export class CapabilityAgent {
    *   private key material; treat the result as sensitive.
    */
   getVerificationKeyPair(): VerificationKeyDescriptor {
-    const { type, publicKeyMultibase } = this._keyPair
-    if (!type || !publicKeyMultibase) {
+    const { controller, publicKeyMultibase, privateKeyMultibase } =
+      this._keyPair
+    if (!controller || !publicKeyMultibase || !privateKeyMultibase) {
       throw new Error(
         'CapabilityAgent is missing Ed25519 key material; cannot export ' +
           'verification key pair.'
       )
     }
     // defer to the key class's canonical exporter so the descriptor tracks
-    // its export format
-    return {
-      ...this._keyPair.toVerificationKey2020({
-        publicKey: true,
-        privateKey: true
-      }),
-      type,
-      publicKeyMultibase,
-      controller: this.id
-    }
+    // its export format; the guard above makes the required fields present
+    return this._keyPair.toVerificationKey2020({
+      publicKey: true,
+      privateKey: true
+    }) as VerificationKeyDescriptor
   }
 
   /**
@@ -115,14 +115,13 @@ export class CapabilityAgent {
    * directly to capture the intermediate seed (e.g. to store it wrapped so
    * the same agent can later be reconstituted without the secret).
    *
-   * @param {object} options - The options to use.
-   * @param {string|Uint8Array} [options.secret] - A secret to use as input
-   *   when generating the key, e.g., a bcrypt hash of a password.
-   * @param {string} options.handle - A semantic identifier for the secret
-   *   that is mixed with it like a salt to produce a seed, and, if `cache` is
-   *   true, will be used to identify the seed in the cache. A common use for
-   *   this field is to use the account ID for a user in a system.
-   * @param {string} [options.keyName='default'] - An optional name to use to
+   * @param options {object}
+   * @param options.secret {string|Uint8Array} A secret to use as input when
+   *   generating the key, e.g., a bcrypt hash of a password.
+   * @param options.handle {string} A semantic identifier for the secret that
+   *   is mixed with it to produce a seed. A common use for this field is the
+   *   account ID for a user in a system.
+   * @param [options.keyName='default'] {string} An optional name to use to
    *   generate the key.
    *
    * @returns {Promise<CapabilityAgent>} The new CapabilityAgent instance.
@@ -132,7 +131,7 @@ export class CapabilityAgent {
     handle,
     keyName = 'default'
   }: {
-    secret?: string | Uint8Array
+    secret: string | Uint8Array
     handle: string
     keyName?: string
   }): Promise<CapabilityAgent> {
@@ -142,15 +141,15 @@ export class CapabilityAgent {
 
   /**
    * Computes the deterministic seed `fromSecret()` derives its keys from: the
-   * SHA-256 hash of the secret salted with the handle. Exposed so callers can
+   * SHA-256 hash of the secret mixed with the handle. Exposed so callers can
    * persist the seed (suitably encrypted) and later reconstitute the same
    * agent via `fromSeed()` without the original secret.
    *
-   * @param {object} options - The options to use.
-   * @param {string|Uint8Array} [options.secret] - A secret to use as input
-   *   when generating the key, e.g., a bcrypt hash of a password.
-   * @param {string} options.handle - A semantic identifier for the secret
-   *   that is mixed with it like a salt to produce the seed.
+   * @param options {object}
+   * @param options.secret {string|Uint8Array} A secret to use as input when
+   *   generating the key, e.g., a bcrypt hash of a password.
+   * @param options.handle {string} A semantic identifier for the secret that
+   *   is mixed with it to produce the seed.
    *
    * @returns {Promise<Uint8Array>} The 32-byte seed.
    */
@@ -158,20 +157,20 @@ export class CapabilityAgent {
     secret,
     handle
   }: {
-    secret?: string | Uint8Array
+    secret: string | Uint8Array
     handle: string
   }): Promise<Uint8Array> {
     if (typeof handle !== 'string') {
       throw new TypeError('"handle" must be a string.')
     }
-    // do not pre-encode a string secret here; `_computeSaltedHash` needs the
+    // do not pre-encode a string secret here; `_computeSeed` needs the
     // original type to hash binary secrets without a lossy UTF-8 round-trip
     if (typeof secret !== 'string' && !(secret instanceof Uint8Array)) {
       throw new TypeError('"secret" must be a Uint8Array or a string.')
     }
 
-    // compute salted SHA-256 hash as the seed for the key
-    return _computeSaltedHash({ secret, salt: handle })
+    // compute the SHA-256 hash of handle and secret as the seed for the key
+    return _computeSeed({ secret, handle })
   }
 
   /**
@@ -182,13 +181,13 @@ export class CapabilityAgent {
    * as-is -- passing it to `fromSecret()` instead would hash it again and
    * yield a different agent.
    *
-   * @param {object} options - The options to use.
-   * @param {Uint8Array} options.seed - The seed to derive the key from, as
+   * @param options {object}
+   * @param options.seed {Uint8Array} The seed to derive the key from, as
    *   produced by `seedFromSecret()`.
-   * @param {string} options.handle - The semantic identifier for the secret
-   *   the seed was derived from (identifies the agent; it does not affect
-   *   the key, which the seed already encodes).
-   * @param {string} [options.keyName='default'] - An optional name to use to
+   * @param options.handle {string} The semantic identifier for the secret the
+   *   seed was derived from (identifies the agent; it does not affect the
+   *   key, which the seed already encodes).
+   * @param [options.keyName='default'] {string} An optional name to use to
    *   generate the key.
    *
    * @returns {Promise<CapabilityAgent>} The new CapabilityAgent instance.
@@ -237,15 +236,14 @@ function _uint8ArrayToString(data: string | Uint8Array): string {
   return new TextDecoder().decode(data)
 }
 
-async function _computeSaltedHash({
+async function _computeSeed({
   secret,
-  salt
+  handle
 }: {
   secret: string | Uint8Array
-  salt: string | Uint8Array
+  handle: string
 }): Promise<Uint8Array> {
-  // compute salted SHA-256 hash
-  salt = _uint8ArrayToString(salt)
+  // compute SHA-256 hash of the handle-prefixed secret
   let toHash: Uint8Array
   if (typeof secret === 'string') {
     // normalize the string exactly as the prior string -> bytes -> string path
@@ -253,13 +251,14 @@ async function _computeSaltedHash({
     // secrets
     secret = _uint8ArrayToString(_stringToUint8Array(secret))
     toHash = _stringToUint8Array(
-      `${encodeURIComponent(salt)}:${encodeURIComponent(secret)}`
+      `${encodeURIComponent(handle)}:${encodeURIComponent(secret)}`
     )
   } else {
     // hash the raw secret bytes directly to avoid a lossy UTF-8 round-trip that
     // would collapse distinct binary secrets to the same seed; encodeURIComponent
-    // percent-encodes ':' so the encoded salt prefix is an unambiguous separator
-    const prefix = _stringToUint8Array(`${encodeURIComponent(salt)}:`)
+    // percent-encodes ':' so the encoded handle prefix is an unambiguous
+    // separator
+    const prefix = _stringToUint8Array(`${encodeURIComponent(handle)}:`)
     toHash = new Uint8Array(prefix.length + secret.length)
     toHash.set(prefix)
     toHash.set(secret, prefix.length)
@@ -277,28 +276,17 @@ async function _keyFromSeedAndName({
   seed: Uint8Array
   keyName: string
 }): Promise<{ signer: ISigner; keyPair: Ed25519VerificationKey }> {
-  const extractable = false
-  const hmacKey = await subtle.importKey(
-    'raw',
-    seed as Uint8Array<ArrayBuffer>,
-    { name: 'HMAC', hash: { name: 'SHA-256' } },
-    extractable,
-    ['sign']
-  )
-  const nameBuffer = _stringToUint8Array(keyName)
-  const signature = new Uint8Array(
-    await subtle.sign(
-      hmacKey.algorithm,
-      hmacKey,
-      nameBuffer as Uint8Array<ArrayBuffer>
-    )
-  )
+  // HMAC-SHA-256 of the key name under the seed; the key id is ephemeral
+  const hmacKey = await SHA256HMACKey.fromSecret({ id: keyName, secret: seed })
+  const signature = await hmacKey.sign({ data: _stringToUint8Array(keyName) })
   // generate Ed25519 key from HMAC signature
   const keyPair = await Ed25519VerificationKey.generate({ seed: signature })
 
-  // specify ID for key using fingerprint; must be set before `signer()`
+  // specify controller and ID for key using fingerprint; must be set before
+  // `signer()`
   const fingerprint = keyPair.fingerprint()
-  keyPair.id = `did:key:${fingerprint}#${fingerprint}`
+  keyPair.controller = `did:key:${fingerprint}`
+  keyPair.id = `${keyPair.controller}#${fingerprint}`
 
   // create signer for the key (includes the key's `id`, set above)
   const signer = keyPair.signer()
