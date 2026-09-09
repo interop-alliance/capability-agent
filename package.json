@@ -1,7 +1,7 @@
 {
   "name": "@interop/capability-agent",
   "description": "Deterministic did:key Ed25519 invocation signer (CapabilityAgent) derived from a seed or a salted secret, for the browser, Node.js, and React Native.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "build": "pnpm run clear && tsc",
