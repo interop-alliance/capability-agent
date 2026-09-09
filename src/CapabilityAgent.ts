@@ -10,29 +10,12 @@
  * consumers pin its output in fixtures. Do not change the hashing, the HMAC
  * step, or the id shape.
  */
-import {
-  type ISigner,
-  type IVerificationKeyPair2020,
-  SHA256HMACKey
-} from '@interop/data-integrity-core'
+import { type ISigner, SHA256HMACKey } from '@interop/data-integrity-core'
 import { Ed25519VerificationKey } from '@interop/ed25519-verification-key'
 
 const { subtle } = globalThis.crypto
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
-
-/**
- * The public + private Ed25519 verification key descriptor backing a
- * CapabilityAgent's invocation signer: the shared `IVerificationKeyPair2020`
- * shape, with the fields this export guarantees made required.
- */
-export type VerificationKeyDescriptor = IVerificationKeyPair2020 &
-  Required<
-    Pick<
-      IVerificationKeyPair2020,
-      'type' | 'controller' | 'publicKeyMultibase' | 'privateKeyMultibase'
-    >
-  >
 
 export class CapabilityAgent {
   handle: string
@@ -82,30 +65,38 @@ export class CapabilityAgent {
   }
 
   /**
-   * Returns the Ed25519 verification key pair backing this agent's invocation
-   * signer, as a plain descriptor with `controller` set to this agent's
-   * did:key id. Exposed so callers can derive related keys -- e.g. the X25519
-   * key agreement key (the Montgomery form of this signing key) used for
-   * encrypted storage -- without reaching into private internals.
+   * Returns the Ed25519 key fields backing this agent's invocation signer,
+   * with `controller` set to this agent's did:key id. Exposed so callers can
+   * derive related keys -- e.g. the X25519 key agreement key (the Montgomery
+   * form of this signing key) used for encrypted storage, via
+   * `X25519KeyAgreementKey2020.fromEd25519()` -- without reaching into
+   * private internals.
    *
-   * @returns {VerificationKeyDescriptor} The signing key pair. Includes the
-   *   private key material; treat the result as sensitive.
+   * @returns {object} The signing key fields. Includes the private key
+   *   material; treat the result as sensitive.
    */
-  getVerificationKeyPair(): VerificationKeyDescriptor {
-    const { controller, publicKeyMultibase, privateKeyMultibase } =
+  getVerificationKeyPair(): {
+    id: string
+    type: string
+    controller: string
+    publicKeyMultibase: string
+    privateKeyMultibase: string
+  } {
+    const { id, type, controller, publicKeyMultibase, privateKeyMultibase } =
       this._keyPair
-    if (!controller || !publicKeyMultibase || !privateKeyMultibase) {
+    if (
+      !id ||
+      !type ||
+      !controller ||
+      !publicKeyMultibase ||
+      !privateKeyMultibase
+    ) {
       throw new Error(
         'CapabilityAgent is missing Ed25519 key material; cannot export ' +
           'verification key pair.'
       )
     }
-    // defer to the key class's canonical exporter so the descriptor tracks
-    // its export format; the guard above makes the required fields present
-    return this._keyPair.toVerificationKey2020({
-      publicKey: true,
-      privateKey: true
-    }) as VerificationKeyDescriptor
+    return { id, type, controller, publicKeyMultibase, privateKeyMultibase }
   }
 
   /**

@@ -5,8 +5,7 @@
 ### Fixed
 
 - `getVerificationKeyPair()` now throws when the key pair lacks a private key
-  instead of returning a descriptor with `privateKeyMultibase: undefined`;
-  `VerificationKeyDescriptor` declares that field as required.
+  instead of returning a descriptor with `privateKeyMultibase: undefined`.
 - `secret` is typed as required on `fromSecret()` and `seedFromSecret()`,
   matching the runtime check. The JSDoc no longer refers to a nonexistent
   `cache` option.
@@ -17,6 +16,15 @@
   `@interop/data-integrity-core` instead of a local WebCrypto call. Derivation
   output is unchanged.
 - Derived key pairs carry `controller` (the agent's did:key) alongside `id`.
+- `getVerificationKeyPair()` returns the key fields (`id`, `type`, `controller`,
+  `publicKeyMultibase`, `privateKeyMultibase`) as a plain object instead of
+  going through the VerificationKey2020 exporter. The shape is unchanged; the
+  return type is inlined and the `VerificationKeyDescriptor` export is gone.
+
+### Removed
+
+- The `VerificationKeyDescriptor` type export. Use the inferred return type of
+  `getVerificationKeyPair()`.
 
 ## 0.1.0 - 2026-09-09
 

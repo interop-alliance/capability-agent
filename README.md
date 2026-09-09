@@ -72,6 +72,7 @@ pnpm install
 
 ```ts
 import { CapabilityAgent } from '@interop/capability-agent'
+import { X25519KeyAgreementKey2020 } from '@interop/x25519-key-agreement-key'
 
 // From a secret salted with a handle (an account id, for example):
 const agent = await CapabilityAgent.fromSecret({
@@ -92,8 +93,10 @@ const signing = await CapabilityAgent.fromSeed({
   keyName: 'signing'
 })
 
-// The backing key pair, e.g. to derive an X25519 key agreement key:
-const keyPair = agent.getVerificationKeyPair()
+// The backing key fields, e.g. to derive an X25519 key agreement key:
+const kak = X25519KeyAgreementKey2020.fromEd25519(
+  agent.getVerificationKeyPair()
+)
 ```
 
 ## Contribute
