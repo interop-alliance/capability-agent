@@ -18,6 +18,8 @@ import {
 import { Ed25519VerificationKey } from '@interop/ed25519-verification-key'
 
 const { subtle } = globalThis.crypto
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
 
 /**
  * The public + private Ed25519 verification key descriptor backing a
@@ -38,7 +40,7 @@ export class CapabilityAgent {
   signer: ISigner
   // Underlying Ed25519 key pair used for invocation signing. Read it through
   // getVerificationKeyPair() rather than touching this field directly.
-  protected _keyPair: Ed25519VerificationKey
+  private _keyPair: Ed25519VerificationKey
 
   /**
    * Wraps an already-derived key pair and its signer. Callers normally use
@@ -160,9 +162,7 @@ export class CapabilityAgent {
     secret: string | Uint8Array
     handle: string
   }): Promise<Uint8Array> {
-    if (typeof handle !== 'string') {
-      throw new TypeError('"handle" must be a string.')
-    }
+    _assertHandle(handle)
     // do not pre-encode a string secret here; `_computeSeed` needs the
     // original type to hash binary secrets without a lossy UTF-8 round-trip
     if (typeof secret !== 'string' && !(secret instanceof Uint8Array)) {
@@ -201,9 +201,7 @@ export class CapabilityAgent {
     handle: string
     keyName?: string
   }): Promise<CapabilityAgent> {
-    if (typeof handle !== 'string') {
-      throw new TypeError('"handle" must be a string.')
-    }
+    _assertHandle(handle)
     if (!(seed instanceof Uint8Array) || seed.length === 0) {
       throw new TypeError('"seed" must be a non-empty Uint8Array.')
     }
@@ -213,27 +211,10 @@ export class CapabilityAgent {
   }
 }
 
-function _stringToUint8Array(data: string | Uint8Array): Uint8Array {
-  if (typeof data === 'string') {
-    // convert data to Uint8Array
-    return new TextEncoder().encode(data)
+function _assertHandle(handle: unknown): asserts handle is string {
+  if (typeof handle !== 'string') {
+    throw new TypeError('"handle" must be a string.')
   }
-  if (!(data instanceof Uint8Array)) {
-    throw new TypeError('"data" must be a string or Uint8Array.')
-  }
-  return data
-}
-
-function _uint8ArrayToString(data: string | Uint8Array): string {
-  if (typeof data === 'string') {
-    // already a string
-    return data
-  }
-  if (!(data instanceof Uint8Array)) {
-    throw new TypeError('"data" must be a string or Uint8Array.')
-  }
-  // convert Uint8Array to string
-  return new TextDecoder().decode(data)
 }
 
 async function _computeSeed({
@@ -246,11 +227,10 @@ async function _computeSeed({
   // compute SHA-256 hash of the handle-prefixed secret
   let toHash: Uint8Array
   if (typeof secret === 'string') {
-    // normalize the string exactly as the prior string -> bytes -> string path
-    // did, then percent-encode, so the hashed bytes are unchanged for string
-    // secrets
-    secret = _uint8ArrayToString(_stringToUint8Array(secret))
-    toHash = _stringToUint8Array(
+    // the UTF-8 round-trip replaces lone surrogates with U+FFFD so that
+    // `encodeURIComponent` cannot throw; it is part of the pinned derivation
+    secret = textDecoder.decode(textEncoder.encode(secret))
+    toHash = textEncoder.encode(
       `${encodeURIComponent(handle)}:${encodeURIComponent(secret)}`
     )
   } else {
@@ -258,7 +238,7 @@ async function _computeSeed({
     // would collapse distinct binary secrets to the same seed; encodeURIComponent
     // percent-encodes ':' so the encoded handle prefix is an unambiguous
     // separator
-    const prefix = _stringToUint8Array(`${encodeURIComponent(handle)}:`)
+    const prefix = textEncoder.encode(`${encodeURIComponent(handle)}:`)
     toHash = new Uint8Array(prefix.length + secret.length)
     toHash.set(prefix)
     toHash.set(secret, prefix.length)
@@ -278,7 +258,7 @@ async function _keyFromSeedAndName({
 }): Promise<{ signer: ISigner; keyPair: Ed25519VerificationKey }> {
   // HMAC-SHA-256 of the key name under the seed; the key id is ephemeral
   const hmacKey = await SHA256HMACKey.fromSecret({ id: keyName, secret: seed })
-  const signature = await hmacKey.sign({ data: _stringToUint8Array(keyName) })
+  const signature = await hmacKey.sign({ data: textEncoder.encode(keyName) })
   // generate Ed25519 key from HMAC signature
   const keyPair = await Ed25519VerificationKey.generate({ seed: signature })
 
