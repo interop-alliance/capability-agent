@@ -1,5 +1,13 @@
 # @interop/capability-agent Changelog
 
+## 0.2.0 - TBD
+
+### Changed
+
+- Bumped `@interop/ed25519-verification-key` to `^8.2.0`.
+- The invocation signer is now derived via the key pair's `didKeySigner()`
+  instead of `signer()`. Output is unchanged.
+
 ## 0.1.1 - 2026-09-09
 
 ### Fixed

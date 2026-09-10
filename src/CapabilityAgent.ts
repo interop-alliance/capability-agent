@@ -253,13 +253,15 @@ async function _keyFromSeedAndName({
   // generate Ed25519 key from HMAC signature
   const keyPair = await Ed25519VerificationKey.generate({ seed: signature })
 
-  // specify controller and ID for key using fingerprint; must be set before
-  // `signer()`
+  // specify controller and ID for key using fingerprint; getVerificationKeyPair()
+  // reads both off the key pair, so they stay set here even though the signer
+  // below is derived independently of them
   const fingerprint = keyPair.fingerprint()
   keyPair.controller = `did:key:${fingerprint}`
   keyPair.id = `${keyPair.controller}#${fingerprint}`
 
-  // create signer for the key (includes the key's `id`, set above)
-  const signer = keyPair.signer()
+  // create signer for the key, named did:key:<fingerprint>#<fingerprint> by
+  // didKeySigner()
+  const signer = keyPair.didKeySigner()
   return { signer, keyPair }
 }
