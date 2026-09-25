@@ -1,5 +1,11 @@
 # @interop/capability-agent Changelog
 
+## 0.2.1 - TBD
+
+### Changed
+
+- Update to latest data integrity core 8.8.0.
+
 ## 0.2.0 - 2026-09-10
 
 ### Changed
