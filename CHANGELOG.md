@@ -1,6 +1,6 @@
 # @interop/capability-agent Changelog
 
-## 0.2.1 - TBD
+## 0.2.1 - 2026-09-25
 
 ### Changed
 
