@@ -1,5 +1,11 @@
 # @interop/capability-agent Changelog
 
+## 0.2.2 - TBD
+
+### Changed
+
+- Update to latest di core 8.9.0.
+
 ## 0.2.1 - 2026-09-25
 
 ### Changed
